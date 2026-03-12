@@ -1,0 +1,17 @@
+project_name: "openclaw-rl"
+language: python
+include_paths:
+  - "openclaw"
+gates:
+  gate_a:
+    enabled: true
+  gate_b:
+    enabled: true
+  gate_c:
+    enabled: true
+  gate_d:
+    enabled: false
+  gate_e:
+    enabled: true
+  gate_f:
+    enabled: false
