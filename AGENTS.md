@@ -129,6 +129,6 @@ bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh
 - **Not a monorepo**: Each project has independent git history
 - **Gateway docs**: See `openclaw/AGENTS.md` for comprehensive 23KB guide
 - **Hardware baseline**: 8× GPUs (configurable via env vars)
-- **Roadmap**: Track 1 (personal agent optimization), Track 2 (scalable agentic RL infra)
+- **Architecture**: 4-component async design (Actor, Rollout, PRM, Critic) with graceful weight updates
 - **Research**: Based on Slime framework, RLAnything, and Open-AgentRL
 - **Production-ready**: Fully async 4-component architecture with graceful weight updates
