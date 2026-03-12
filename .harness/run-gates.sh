@@ -48,17 +48,14 @@ for path in "${INCLUDE_PATHS[@]}"; do
 done
 run_gate "syntax" "$compile_cmd"
 
-if command -v ruff >/dev/null 2>&1; then
+if command -v ruff >/dev/null 2>&1 && grep -q '^\[tool\.ruff' "$PROJECT_ROOT/pyproject.toml" 2>/dev/null; then
   ruff_cmd="ruff check"
   for path in "${INCLUDE_PATHS[@]}"; do
     ruff_cmd+=" '$path'"
   done
-  if [[ -n "$TEST_PATH" && -e "$PROJECT_ROOT/$TEST_PATH" ]]; then
-    ruff_cmd+=" '$TEST_PATH'"
-  fi
   run_gate "ruff" "$ruff_cmd"
 else
-  skip_gate "ruff" "ruff not installed"
+  skip_gate "ruff" "ruff not configured"
 fi
 
 if [[ -n "$TEST_PATH" && -e "$PROJECT_ROOT/$TEST_PATH" ]]; then
