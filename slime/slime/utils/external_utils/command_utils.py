@@ -45,22 +45,9 @@ def convert_checkpoint(
         nnodes = len(job_hostnames)
         node_rank = int(os.environ["SLURM_NODEID"])
 
-        multinode_args = (
-            f"--master-addr {master_addr} " "--master-port 23456 " f"--nnodes={nnodes} " f"--node-rank {node_rank} "
-        )
+        multinode_args = f"--master-addr {master_addr} --master-port 23456 --nnodes={nnodes} --node-rank {node_rank} "
 
-    exec_command(
-        f"source {repo_base_dir}/scripts/models/{megatron_model_type}.sh && "
-        f"PYTHONPATH=/root/Megatron-LM "
-        f"torchrun "
-        f"--nproc-per-node {num_gpus_per_node} "
-        f"{multinode_args}"
-        f"tools/convert_hf_to_torch_dist.py "
-        "${MODEL_ARGS[@]} "
-        f"--hf-checkpoint {hf_checkpoint} "
-        f"--save {path_dst}"
-        f"{extra_args}"
-    )
+    exec_command(f"source {repo_base_dir}/scripts/models/{megatron_model_type}.sh && PYTHONPATH=/root/Megatron-LM torchrun --nproc-per-node {num_gpus_per_node} {multinode_args}tools/convert_hf_to_torch_dist.py ${{MODEL_ARGS[@]}} --hf-checkpoint {hf_checkpoint} --save {path_dst}{extra_args}")
 
 
 def rsync_simple(path_src: str, path_dst: str):
@@ -77,9 +64,7 @@ def fp8_cast_bf16(path_src, path_dst):
         print(f"fp8_cast_bf16 skip {path_dst} since exists")
         return
 
-    exec_command(
-        "python tools/fp8_cast_bf16.py " f"--input-fp8-hf-path {path_src} " f"--output-bf16-hf-path {path_dst} "
-    )
+    exec_command(f"python tools/fp8_cast_bf16.py --input-fp8-hf-path {path_src} --output-bf16-hf-path {path_dst} ")
 
 
 # This class can be extended by concrete scripts
@@ -129,8 +114,7 @@ def execute_train(
     if not external_ray:
         exec_command(
             # will prevent ray from buffering stdout/stderr
-            f"export PYTHONBUFFERED=16 && "
-            f"ray start --head --node-ip-address {master_addr} --num-gpus {num_gpus_per_node} --disable-usage-stats"
+            f"export PYTHONBUFFERED=16 && ray start --head --node-ip-address {master_addr} --num-gpus {num_gpus_per_node} --disable-usage-stats"
         )
 
     if (f := before_ray_job_submit) is not None:
@@ -169,20 +153,8 @@ def execute_train(
     )
 
     if get_bool_env_var("SLIME_SCRIPT_ENABLE_RAY_SUBMIT", "1"):
-        cmd_megatron_model_source = (
-            f'source "{repo_base_dir}/scripts/models/{megatron_model_type}.sh" && '
-            if megatron_model_type is not None
-            else ""
-        )
-        exec_command(
-            f"export no_proxy=127.0.0.1 && export PYTHONBUFFERED=16 && "
-            f"{cmd_megatron_model_source}"
-            f'ray job submit --address="http://127.0.0.1:8265" '
-            f"--runtime-env-json='{runtime_env_json}' "
-            f"-- python3 {train_script} "
-            f"{'${MODEL_ARGS[@]}' if megatron_model_type is not None else ''} "
-            f"{train_args}"
-        )
+        cmd_megatron_model_source = f'source "{repo_base_dir}/scripts/models/{megatron_model_type}.sh" && ' if megatron_model_type is not None else ""
+        exec_command(f"export no_proxy=127.0.0.1 && export PYTHONBUFFERED=16 && {cmd_megatron_model_source}ray job submit --address=\"http://127.0.0.1:8265\" --runtime-env-json='{runtime_env_json}' -- python3 {train_script} {'${MODEL_ARGS[@]}' if megatron_model_type is not None else ''} {train_args}")
 
 
 def _parse_extra_env_vars(text: str):
@@ -215,17 +187,11 @@ def get_default_wandb_args(test_file: str, run_name_prefix: str | None = None, r
 
     # Use the actual key value from environment to avoid shell expansion issues
     wandb_key = os.environ.get("WANDB_API_KEY")
-    return (
-        "--use-wandb "
-        f"--wandb-project slime-{test_name} "
-        f"--wandb-group {wandb_run_name} "
-        f"--wandb-key '{wandb_key}' "
-        "--disable-wandb-random-suffix "
-    )
+    return f"--use-wandb --wandb-project slime-{test_name} --wandb-group {wandb_run_name} --wandb-key '{wandb_key}' --disable-wandb-random-suffix "
 
 
 def create_run_id() -> str:
-    return datetime.datetime.utcnow().strftime("%y%m%d-%H%M%S") + f"-{random.Random().randint(0, 999):03d}"
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%y%m%d-%H%M%S") + f"-{random.Random().randint(0, 999):03d}"
 
 
 _warned_bool_env_var_keys = set()

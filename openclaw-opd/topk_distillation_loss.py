@@ -16,9 +16,7 @@ from typing import Callable
 
 import torch
 import torch.nn.functional as F
-
 from megatron.core import mpu
-
 from slime.backends.megatron_utils.loss import get_responses
 from slime.utils.ppo_utils import compute_log_probs
 

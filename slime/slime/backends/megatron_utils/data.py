@@ -472,7 +472,7 @@ def get_data_iterator(
             num_microbatches = fixed_num_microbatches
 
         max_mb_tokens = 0
-        for mb_idx, indices in enumerate(micro_batch_indices):
+        for _mb_idx, indices in enumerate(micro_batch_indices):
             mb_tokens = sum(all_lengths[idx] for idx in indices)
             max_mb_tokens = max(max_mb_tokens, mb_tokens)
         logger.info(

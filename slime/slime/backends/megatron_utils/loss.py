@@ -4,7 +4,6 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import torch
-import torch.distributed as dist
 from megatron.core import mpu
 from torch.utils.checkpoint import checkpoint
 
@@ -349,7 +348,7 @@ def compute_advantages_and_returns(args: Namespace, rollout_data: RolloutBatch) 
             full_adv = torch.zeros(response_len, dtype=torch.float32, device=kl[0].device)
             full_mask = loss_masks[i].to(device=full_adv.device, dtype=full_adv.dtype)
 
-            group_idx = int(group_indices[i])
+            _group_idx = int(group_indices[i])
             step_rewards_i = step_rewards_per_sample[i] or []
             step_spans_i = step_spans_per_sample[i] or []
             step_indices_i = (

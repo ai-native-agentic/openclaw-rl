@@ -19,7 +19,6 @@ from argparse import Namespace
 from collections.abc import Callable
 
 import torch
-
 from slime.backends.megatron_utils.loss import get_log_probs_and_entropy
 from slime.utils.ppo_utils import compute_approx_kl, compute_policy_loss
 
