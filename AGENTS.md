@@ -15,29 +15,62 @@ The stack decouples agent serving, rollout collection, PRM judging, and policy t
 
 ## STRUCTURE
 
-```
 openclaw-rl/
-├── openclaw/                        # Full OpenClaw gateway (TypeScript, pnpm monorepo)
-│   ├── AGENTS.md                    # Comprehensive gateway docs (23KB)
-│   ├── src/                         # Gateway source code
-│   ├── extensions/                  # Channel plugins (Matrix, Teams, Zalo, etc.)
-│   └── package.json                 # Gateway dependencies and scripts
-│
-├── openclaw-rl/                     # RL training module (Python)
-│   ├── openclaw_api_server.py       # OpenAI-compatible API server
-│   ├── openclaw_rollout.py          # Rollout collection logic
-│   ├── run_qwen3_4b_openclaw_rl.sh  # Binary RL launch script
-│   └── README.md                    # Binary RL algorithm details
-│
-├── openclaw-opd/                    # On-Policy Distillation module (Python)
-│   ├── run_qwen3_4b_openclaw_opd.sh # OPD launch script
-│   └── README.md                    # OPD algorithm details
-│
-├── slime/                           # THUDM Slime RL framework (base)
-├── Megatron-LM/                     # LLM training infrastructure
-├── instructions/                    # Environment setup guides
-└── README.md                        # Quick start and roadmap
-```
+├── Megatron-LM/
+│   ├── docker/
+│   ├── docs/
+│   ├── examples/
+│   ├── images/
+│   ├── megatron/
+│   ├── scripts/
+│   ├── tasks/
+│   ├── tests/
+│   ├── tools/
+│   ├── README.md
+│   ├── pyproject.toml
+├── assets/
+├── instructions/
+│   └── README.md
+├── openclaw/
+│   ├── Swabble/
+│   ├── apps/
+│   ├── assets/
+│   ├── docs/
+│   ├── extensions/
+│   ├── git-hooks/
+│   ├── packages/
+│   ├── patches/
+│   ├── scripts/
+│   ├── skills/
+│   ├── src/
+│   ├── test/
+│   ├── ui/
+│   ├── AGENTS.md
+│   ├── README.md
+│   ├── package.json
+│   ├── pyproject.toml
+├── openclaw-combine/
+│   └── README.md
+├── openclaw-opd/
+│   └── README.md
+├── openclaw-rl/
+│   └── README.md
+├── openclaw-test/
+│   ├── README.md
+├── slime/
+│   ├── docker/
+│   ├── docs/
+│   ├── examples/
+│   ├── imgs/
+│   ├── scripts/
+│   ├── slime/
+│   ├── slime_plugins/
+│   ├── tests/
+│   ├── tools/
+│   └── README.md
+│   ├── pyproject.toml
+├── AGENTS.md
+├── README.md
 
 ## WHERE TO LOOK
 
