@@ -1,0 +1,70 @@
+# Git and version control
+.git
+.gitignore
+.github
+
+# Python cache and build artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+*.egg
+dist/
+build/
+.eggs/
+
+# Testing and coverage
+.pytest_cache
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Development and IDE
+.venv
+.env
+.env.local
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Linting and formatting cache
+.ruff_cache
+.mypy_cache
+.pylint_cache
+
+# Large ML artifacts (not needed in image)
+*.gguf
+*.bin
+*.onnx
+*.safetensors
+*.pt
+*.pth
+
+# Large directories
+Megatron-LM/
+slime/
+openclaw/
+assets/
+instructions/
+
+# Documentation
+*.md
+docs/
+README.md
+AGENTS.md
+LICENSE
+
+# CI/CD
+.harness/
+.github/
+
+# Misc
+*.log
+*.tmp
+.cache/
