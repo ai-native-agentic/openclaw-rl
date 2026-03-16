@@ -379,6 +379,8 @@ See [`./openclaw-test/README.md`](./openclaw-test/README.md) for setup and algor
 
 Install OpenClaw from the version bundled in this repository (we will update it regularly):
 
+If you want local file-backed skill authoring in the bundled OpenClaw runtime, see [`openclaw/extensions/skill-bridge/README.md`](./openclaw/extensions/skill-bridge/README.md).
+
 <details>
 <summary><b>Then configure OpenClaw to route requests to your RL server. </b></summary>
 
@@ -554,7 +556,6 @@ When using OpenClaw-RL, please do not provide sensitive personal information dur
 
 
 ---
-
 
 
 
