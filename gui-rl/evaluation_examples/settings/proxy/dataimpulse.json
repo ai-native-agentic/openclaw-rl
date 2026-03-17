@@ -1,0 +1,13 @@
+[
+    {
+        "host": "sys-proxy-rd-relay.byted.org",
+        "port": 8118,
+        "username": null,
+        "password": null,
+        "protocol": "http",
+        "provider": "dataimpulse",
+        "type": "residential",
+        "country": "US",
+        "note": "Dataimpulse Residential Proxy"
+    }
+]

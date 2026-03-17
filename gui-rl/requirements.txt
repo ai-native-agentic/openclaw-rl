@@ -1,0 +1,56 @@
+# 1) GUI automation / input / windowing
+pyautogui
+pynput
+PyGetWindow
+python-xlib
+evdev
+
+# 2) Browser automation
+playwright
+
+# 3) Vision / OCR / image similarity
+opencv-python-headless
+easyocr
+scikit-image
+ImageHash
+imagehash
+
+# 4) Document & file parsing (PDF/Office/HTML/XML)
+pymupdf
+pdfplumber
+pypdf
+pypdf2
+pypdfium2
+borb
+openpyxl
+python-docx
+python-pptx
+odfpy
+lxml
+beautifulsoup4
+cssselect
+xmltodict
+
+# 5) Download / transfer helpers
+gdown
+pydrive
+requests_toolbelt
+
+# 6) Environment / remote control / IPC (optional, depends on your setup)
+docker
+fabric
+paramiko
+rpyc
+redis
+
+gymnasium
+rapidfuzz
+formulas
+tldextract
+mutagen
+pyacoustid
+librosa
+fastdtw
+
+nvidia-cudnn-cu12==9.16.0.29
+# mismatch with torch is ok
