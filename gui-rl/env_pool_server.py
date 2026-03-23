@@ -61,8 +61,14 @@ class EnvPool:
         self._slots: dict[str, EnvSlot] = {}
         self._lease_to_env: dict[str, str] = {}
         self._lock = threading.RLock()
+        self._prewarm_done = False
+        self._prewarm_errors: list[str] = []
         if self.min_envs > 0:
-            self._prewarm(self.min_envs)
+            threading.Thread(
+                target=self._background_prewarm, args=(self.min_envs,), daemon=True,
+            ).start()
+        else:
+            self._prewarm_done = True
 
     def _new_slot(self) -> EnvSlot:
         env_id = f"env-{uuid.uuid4().hex[:12]}"
@@ -70,7 +76,13 @@ class EnvPool:
         return EnvSlot(env_id=env_id, env=env)
 
     def _create_and_store_slot(self, idx: int, count: int) -> None:
-        slot = self._new_slot()
+        try:
+            slot = self._new_slot()
+        except Exception as exc:
+            logger.exception("Failed to create env (%d/%d)", idx + 1, count)
+            with self._lock:
+                self._prewarm_errors.append(f"env {idx+1}/{count}: {exc}")
+            return
         with self._lock:
             self._slots[slot.env_id] = slot
         logger.info("Prewarmed env %s (%d/%d)", slot.env_id, idx + 1, count)
@@ -87,7 +99,55 @@ class EnvPool:
                 for idx in range(count)
             ]
             for future in concurrent.futures.as_completed(futures):
-                future.result()
+                try:
+                    future.result()
+                except Exception:
+                    logger.exception("Prewarm task raised an unexpected error")
+
+    def _background_prewarm(self, count: int) -> None:
+        try:
+            self._prewarm(count)
+        except Exception:
+            logger.exception("Background prewarm crashed")
+            with self._lock:
+                self._prewarm_errors.append("prewarm crashed unexpectedly")
+        finally:
+            self._prewarm_done = True
+            with self._lock:
+                ok_count = len(self._slots)
+                err_count = len(self._prewarm_errors)
+                errors_copy = list(self._prewarm_errors)
+            logger.info(
+                "Prewarm finished: %d/%d envs ready, %d errors",
+                ok_count, count, err_count,
+            )
+            if errors_copy:
+                self._emit_errors_to_terminal(ok_count, count, errors_copy)
+
+    @staticmethod
+    def _emit_errors_to_terminal(ok_count: int, total: int, errors: list[str]) -> None:
+        lines = [
+            "",
+            "=" * 72,
+            f"  ENV POOL PREWARM FAILED: {ok_count}/{total} envs created, {len(errors)} error(s)",
+            "=" * 72,
+        ]
+        for err in errors[:10]:
+            lines.append(f"  ERROR: {err}")
+        if len(errors) > 10:
+            lines.append(f"  ... and {len(errors) - 10} more errors")
+        lines.append("=" * 72)
+        lines.append("")
+        msg = "\n".join(lines)
+        for path in ["/dev/tty", f"/proc/{os.getppid()}/fd/2"]:
+            try:
+                with open(path, "w") as f:
+                    f.write(msg)
+                    f.flush()
+                return
+            except Exception:
+                continue
+        logger.error(msg)
 
     def _reap_idle_locked(self) -> None:
         now = time.time()
@@ -247,6 +307,8 @@ class EnvPool:
                 "min_envs": self.min_envs,
                 "prewarm_concurrency": self.prewarm_concurrency,
                 "reset_on_close": self.reset_on_close,
+                "prewarm_done": self._prewarm_done,
+                "prewarm_errors": list(self._prewarm_errors),
             }
 
 
@@ -261,8 +323,17 @@ def healthz():
 @app.get("/status")
 def status():
     if POOL is None:
-        return jsonify({"ok": False, "error": "Pool is not initialized"}), 500
-    return jsonify({"ok": True, "pool": POOL.status()})
+        return jsonify({"ok": False, "error": "Pool is not initialized"})
+    pool_status = POOL.status()
+    prewarm_done = pool_status.get("prewarm_done", False)
+    prewarm_errors = pool_status.get("prewarm_errors", [])
+    total_envs = pool_status.get("total_envs", 0)
+    min_envs = pool_status.get("min_envs", 0)
+    if prewarm_done and total_envs < min_envs and prewarm_errors:
+        first_err = prewarm_errors[0]
+        pool_status["ok"] = f"FAILED({len(prewarm_errors)} errors): {first_err}"
+        return jsonify({"ok": False, "pool": pool_status})
+    return jsonify({"ok": total_envs >= min_envs or not prewarm_done, "pool": pool_status})
 
 
 @app.post("/allocate")
@@ -452,6 +523,13 @@ def main() -> None:
         "enable_proxy": True,
         "client_password": args.client_password,
     }
+    logger.info(
+        "Starting GUI env pool server on %s:%s with max_envs=%s prewarm_envs=%s",
+        args.host,
+        args.port,
+        args.max_envs,
+        args.prewarm_envs,
+    )
     POOL = EnvPool(
         max_envs=args.max_envs,
         idle_ttl_seconds=args.idle_ttl_seconds,
@@ -459,13 +537,6 @@ def main() -> None:
         prewarm_envs=args.prewarm_envs,
         prewarm_concurrency=args.prewarm_concurrency,
         reset_on_close=bool(args.reset_on_close),
-    )
-    logger.info(
-        "Starting GUI env pool server on %s:%s with max_envs=%s prewarm_envs=%s",
-        args.host,
-        args.port,
-        args.max_envs,
-        args.prewarm_envs,
     )
     app.run(host=args.host, port=args.port, threaded=True)
 
