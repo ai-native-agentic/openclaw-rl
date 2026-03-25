@@ -1,0 +1,29 @@
+{
+  "id": "rl-training-headers",
+  "name": "RL Training Headers",
+  "description": "Adds X-Session-Id and X-Turn-Type headers to every LLM API request for RL training data classification.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "sessionIdHeader": {
+        "type": "string",
+        "default": "X-Session-Id"
+      },
+      "turnTypeHeader": {
+        "type": "string",
+        "default": "X-Turn-Type"
+      }
+    }
+  },
+  "uiHints": {
+    "sessionIdHeader": {
+      "label": "Session ID Header Name",
+      "help": "HTTP header name for the session identifier (default: X-Session-Id)."
+    },
+    "turnTypeHeader": {
+      "label": "Turn Type Header Name",
+      "help": "HTTP header name for the turn type classifier (default: X-Turn-Type)."
+    }
+  }
+}

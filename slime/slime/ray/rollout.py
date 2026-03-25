@@ -260,7 +260,9 @@ class RolloutManager:
                 # dynamic_history can expand one rollout into many step-wise samples.
                 # In that case, honor num_steps_per_rollout by deriving a per-rollout
                 # dynamic global batch size from the actual collected sample count.
-                auto_dynamic_for_history = getattr(self.args, "dynamic_history", False) and target_steps_per_rollout is not None
+                auto_dynamic_for_history = (
+                    getattr(self.args, "dynamic_history", False) and target_steps_per_rollout is not None
+                )
                 use_dynamic_gbs = self.args.use_dynamic_global_batch_size or auto_dynamic_for_history
                 dynamic_target_steps = target_steps_per_rollout if auto_dynamic_for_history else None
                 if use_dynamic_gbs:
@@ -339,7 +341,21 @@ class RolloutManager:
             return self.custom_reward_post_process_func(self.args, samples)
 
         raw_rewards = [sample.get_reward_value(self.args) for sample in samples]
-        if self.args.advantage_estimator in ["grpo", "gspo"] and self.args.rewards_normalization:
+        rewards = list(raw_rewards)
+        if not self.args.rewards_normalization:
+            return raw_rewards, rewards
+
+        def normalize_vals(vals: torch.Tensor, std_normalization: bool = False) -> torch.Tensor:
+            vals = vals - vals.mean()
+            if std_normalization:
+                if len(vals) > 1:
+                    vals = vals / (vals.std() + 1e-6)
+                else:
+                    vals = torch.zeros_like(vals)
+            return vals
+
+        if self.args.advantage_estimator in ["grpo", "gspo", "reinforce_plus_plus_baseline"]:
+            std_norm = (self.args.advantage_estimator in ["grpo", "gspo"]) and self.args.grpo_std_normalization
             if getattr(self.args, "dynamic_history", False):
                 # dynamic_history + GRPO:
                 # normalize one outcome per trajectory inside each task(group),
@@ -360,56 +376,26 @@ class RolloutManager:
                 normalized_by_key: dict[tuple[int, int], float] = {}
                 for _, keys in group_to_keys.items():
                     vals = torch.tensor([traj_reward_by_key[k] for k in keys], dtype=torch.float32)
-                    vals = vals - vals.mean(dim=-1, keepdim=True)
-                    if self.args.grpo_std_normalization:
-                        if len(keys) > 1:
-                            vals = vals / (vals.std(dim=-1, keepdim=True) + 1e-6)
-                        else:
-                            vals = torch.zeros_like(vals)
+                    vals = normalize_vals(vals, std_norm)
                     for j, key in enumerate(keys):
                         normalized_by_key[key] = float(vals[j].item())
 
                 rewards = [normalized_by_key[key] for key in key_by_sample]
-                return raw_rewards, rewards
-
-            # non-dynamic_history + GRPO/GSPO:
-            # normalize reward directly inside each task(group).
-            group_to_indices: dict[int, list[int]] = {}
-            for i, sample in enumerate(samples):
-                group_idx = int(sample.group_index) if sample.group_index is not None else -1
-                group_to_indices.setdefault(group_idx, []).append(i)
-
-            rewards = list(raw_rewards)
-            for _, idxs in group_to_indices.items():
-                vals = torch.tensor([raw_rewards[i] for i in idxs], dtype=torch.float32)
-                vals = vals - vals.mean(dim=-1, keepdim=True)
-                if self.args.grpo_std_normalization:
-                    if len(idxs) > 1:
-                        vals = vals / (vals.std(dim=-1, keepdim=True) + 1e-6)
-                    else:
-                        vals = torch.zeros_like(vals)
-                for j, sample_idx in enumerate(idxs):
-                    rewards[sample_idx] = float(vals[j].item())
-            return raw_rewards, rewards
-
-        if self.args.advantage_estimator in ["reinforce_plus_plus_baseline"] and self.args.rewards_normalization:
-            # group norm
-            rewards = torch.tensor(raw_rewards, dtype=torch.float)
-            if rewards.shape[-1] == self.args.n_samples_per_prompt * self.args.rollout_batch_size:
-                rewards = rewards.reshape(-1, self.args.n_samples_per_prompt)
             else:
-                # when samples count are not equal in each group
-                rewards = rewards.view(-1, rewards.shape[-1])
-            mean = rewards.mean(dim=-1, keepdim=True)
-            rewards = rewards - mean
+                # non-dynamic_history + GRPO/GSPO:
+                # normalize reward directly inside each task(group).
+                group_to_indices: dict[int, list[int]] = {}
+                for i, sample in enumerate(samples):
+                    group_idx = int(sample.group_index) if sample.group_index is not None else -1
+                    group_to_indices.setdefault(group_idx, []).append(i)
 
-            if self.args.advantage_estimator in ["grpo", "gspo"] and self.args.grpo_std_normalization:
-                std = rewards.std(dim=-1, keepdim=True)
-                rewards = rewards / (std + 1e-6)
+                for _, idxs in group_to_indices.items():
+                    vals = torch.tensor([raw_rewards[i] for i in idxs], dtype=torch.float32)
+                    vals = normalize_vals(vals, std_norm)
+                    for j, sample_idx in enumerate(idxs):
+                        rewards[sample_idx] = float(vals[j].item())
 
-            return raw_rewards, rewards.flatten().tolist()
-
-        return raw_rewards, raw_rewards
+        return raw_rewards, rewards
 
     def _drop_constant_reward_groups(self, samples: list[Sample]) -> list[Sample]:
         """Drop GRPO/GSPO groups whose rewards are all identical.
@@ -478,17 +464,13 @@ class RolloutManager:
         group_indices: list[int] = []
 
         for sample in samples:
-            metadata = sample.metadata if isinstance(sample.metadata, dict) else {}
-            step_wise_meta = metadata.get("step_wise", {}) if isinstance(metadata, dict) else {}
+            step_wise_meta = (sample.metadata or {}).get("step_wise", {})
             if not isinstance(step_wise_meta, dict):
                 step_wise_meta = {}
 
             # Preferred field for step_wise: reward for each step has already
             # been composed as (step_prm + outcome) in reward_func.
-            raw_step_rewards = step_wise_meta.get("step_scores_with_outcome", None)
-            if raw_step_rewards is None:
-                # Backward-compatible fallback for old metadata.
-                raw_step_rewards = step_wise_meta.get("step_scores", [])
+            raw_step_rewards = step_wise_meta.get("step_scores_with_outcome") or step_wise_meta.get("step_scores", [])
             raw_step_spans = step_wise_meta.get("step_token_spans", [])
             raw_step_indices = step_wise_meta.get("step_indices", None)
 
@@ -624,7 +606,56 @@ class RolloutManager:
         if self.custom_convert_samples_to_train_data_func is not None:
             return self.custom_convert_samples_to_train_data_func(self.args, samples)
 
+        # TODO: This logic should be moved to the sample builder
+        def _mark_removed_samples(samples: list[Sample]) -> None:
+            if any(sample.multimodal_train_inputs is not None for sample in samples):
+                missing_mm_indices = []
+                for sample in samples:
+                    if sample.multimodal_train_inputs is None and not sample.remove_sample:
+                        sample.remove_sample = True
+                        missing_mm_indices.append(sample.index)
+                if missing_mm_indices:
+                    logger.warning(
+                        "Marked %d samples as non-trainable due to missing multimodal_train_inputs: indices=%s",
+                        len(missing_mm_indices),
+                        missing_mm_indices[:20],
+                    )
+
+        def _drop_removed_samples(samples: list[Sample]) -> list[Sample]:
+            """
+            Drop sample if it is marked as removed.
+            """
+            return [sample for sample in samples if not sample.remove_sample]
+
+        def _make_dummy_samples(count: int) -> list[Sample]:
+            reward = {self.args.reward_key or "score": 0.0}
+            return [
+                Sample(
+                    group_index=-(i + 1),
+                    index=-(i + 1),
+                    tokens=[0, 0],
+                    response_length=1,
+                    loss_mask=[0],
+                    rollout_log_probs=[0.0],
+                    reward=reward,
+                    remove_sample=True,
+                    status=Sample.Status.FAILED,
+                    metadata={"dummy_removed_sample": True},
+                )
+                for i in range(count)
+            ]
+
+        _mark_removed_samples(samples)
+        samples = _drop_removed_samples(samples)
         samples = self._drop_constant_reward_groups(samples)
+        dp_size = self.train_parallel_config["dp_size"]
+        if len(samples) < dp_size:
+            logger.warning(
+                "Injecting %d dummy samples.",
+                dp_size - len(samples),
+            )
+            samples.extend(_make_dummy_samples(dp_size - len(samples)))
+
         raw_rewards, rewards = self._post_process_rewards(samples)
 
         assert len(raw_rewards) == len(samples)
@@ -638,10 +669,9 @@ class RolloutManager:
             "rewards": rewards,
             "raw_reward": raw_rewards,
             "truncated": [1 if sample.status == Sample.Status.TRUNCATED else 0 for sample in samples],
+            "group_indices": [sample.group_index for sample in samples],
             "sample_indices": [sample.index for sample in samples],
         }
-        if self.args.advantage_estimator in ["grpo", "gspo"]:
-            train_data["group_indices"] = [int(sample.group_index) if sample.group_index is not None else -1 for sample in samples]
 
         if self.args.advantage_estimator == "step_wise":
             (
@@ -654,7 +684,6 @@ class RolloutManager:
             train_data["step_wise_step_rewards"] = step_wise_step_rewards
             train_data["step_wise_step_token_spans"] = step_wise_step_token_spans
             train_data["step_wise_step_indices"] = step_wise_step_indices
-            train_data["group_indices"] = group_indices
 
         # loss mask
         # TODO: compress the loss mask
@@ -690,21 +719,7 @@ class RolloutManager:
         if samples[0].train_metadata is not None:
             train_data["metadata"] = [sample.train_metadata for sample in samples]
 
-        has_any_mm = any(s.multimodal_train_inputs is not None for s in samples)
-        if has_any_mm:
-            missing_mm_indices = []
-            for i, sample in enumerate(samples):
-                if sample.multimodal_train_inputs is None and not sample.remove_sample:
-                    sample.remove_sample = True
-                    sample.loss_mask = [0] * sample.response_length
-                    loss_masks[i] = sample.loss_mask
-                    missing_mm_indices.append(sample.index)
-            if missing_mm_indices:
-                logger.warning(
-                    "Dropped %d samples with missing multimodal_train_inputs: indices=%s",
-                    len(missing_mm_indices),
-                    missing_mm_indices[:20],
-                )
+        if any(sample.multimodal_train_inputs is not None for sample in samples):
             train_data["multimodal_train_inputs"] = [sample.multimodal_train_inputs for sample in samples]
 
         if "teacher_log_probs" in samples[0].__dict__:
@@ -761,6 +776,7 @@ class RolloutManager:
                 "loss_masks",
                 "round_number",
                 "sample_indices",
+                "group_indices",
                 "rollout_log_probs",
                 "rollout_routed_experts",
                 "prompt",
@@ -770,7 +786,6 @@ class RolloutManager:
                 "step_wise_step_rewards",
                 "step_wise_step_token_spans",
                 "step_wise_step_indices",
-                "group_indices",
             ]:
                 if key not in data:
                     continue

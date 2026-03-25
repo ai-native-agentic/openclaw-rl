@@ -40,7 +40,12 @@ For each main-line turn, after the next state arrives:
 
 ```bash
 cd slime
+# Qwen3
 bash ../openclaw-combine/run_qwen3_4b_openclaw_combine.sh
+# Qwen3.5
+bash ../openclaw-combine/run_qwen35_4b_openclaw_combine.sh
+# Qwen3.5 LoRA (4 GPUs)
+bash ../openclaw-combine/run_qwen35_4b_openclaw_combine_lora.sh
 ```
 
 ### Key Environment Variables
@@ -58,9 +63,10 @@ All other variables (`NUM_GPUS`, `ACTOR_GPUS`, `HF_CKPT`, etc.) are shared with 
 ```text
 openclaw-combine/
 ├── README.md
-├── run_qwen3_4b_openclaw_combine.sh   # Launch script
-├── openclaw_combine_api_server.py     # Async proxy: hint judge + PRM eval + sample submission
-├── openclaw_combine_rollout.py        # Rollout bridge to SLIME trainer
-├── combine_loss.py                    # Weighted advantage: w_rl * GRPO + w_opd * teacher
-└── results/                           # Runtime records (auto-created)
+├── run_qwen3_4b_openclaw_combine.sh          # Launch script (Qwen3)
+├── run_qwen35_4b_openclaw_combine.sh         # Launch script (Qwen3.5)
+├── openclaw_combine_api_server.py            # Async proxy: hint judge + PRM eval + sample submission
+├── openclaw_combine_rollout.py               # Rollout bridge to SLIME trainer
+├── combine_loss.py                           # Weighted advantage: w_rl * GRPO + w_opd * teacher
+└── results/                                  # Runtime records (auto-created)
 ```

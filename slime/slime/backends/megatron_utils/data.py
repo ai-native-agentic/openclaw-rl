@@ -87,10 +87,13 @@ def get_batch(
     sample_lens = [t.size(0) if isinstance(t, torch.Tensor) else len(t) for t in tokens]
     mb_offset = data_iterator.offset - 1
     has_indices = data_iterator.micro_batch_indices is not None
-    mb_indices = data_iterator.micro_batch_indices[mb_offset] if has_indices and mb_offset < len(data_iterator.micro_batch_indices) else None
+    mb_indices = (
+        data_iterator.micro_batch_indices[mb_offset]
+        if has_indices and mb_offset < len(data_iterator.micro_batch_indices)
+        else None
+    )
     logger.info(
-        "get_batch: offset=%d, %d samples, %d tokens, "
-        "min/max/mean_len=%d/%d/%.0f, has_mb_indices=%s",
+        "get_batch: offset=%d, %d samples, %d tokens, " "min/max/mean_len=%d/%d/%.0f, has_mb_indices=%s",
         mb_offset,
         len(tokens),
         total_tokens_in_microbatch,
@@ -460,8 +463,7 @@ def get_data_iterator(
 
         if len(fixed_indices) != orig_total_mbs:
             logger.warning(
-                "Safety split: %d -> %d micro-batches (max_allowed=%d tokens). "
-                "num_microbatches %s -> %s",
+                "Safety split: %d -> %d micro-batches (max_allowed=%d tokens). " "num_microbatches %s -> %s",
                 orig_total_mbs,
                 len(fixed_indices),
                 max_allowed_tokens,
@@ -520,6 +522,7 @@ def log_rollout_data(
                 "tokens",
                 "multimodal_train_inputs",
                 "loss_masks",
+                "group_indices",
                 "sample_indices",
                 "rollout_routed_experts",
                 "max_seq_lens",
@@ -527,7 +530,6 @@ def log_rollout_data(
                 "step_wise_step_rewards",
                 "step_wise_step_token_spans",
                 "step_wise_step_indices",
-                "group_indices",
                 "teacher_topk_log_probs",
                 "teacher_topk_indices",
             ]:

@@ -25,9 +25,9 @@ pkill -9 python || true
 set -ex
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-SLIME_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
+SLIME_DIR="$(cd -- "${SCRIPT_DIR}/../slime" &>/dev/null && pwd)"
 MODEL_ARGS_ROTARY_BASE=5000000 source "${SLIME_DIR}/scripts/models/qwen3-4B.sh"
-MEGATRON_LM_PATH=${MEGATRON_LM_PATH:-/data_storage/wyj/slime_export/Megatron-LM}
+MEGATRON_LM_PATH=${MEGATRON_LM_PATH:-"${SCRIPT_DIR}/../Megatron-LM"}
 
 export PYTHONUNBUFFERED=1
 export PYTHONFAULTHANDLER=1
@@ -62,7 +62,7 @@ export GUI_PATH_TO_VM=${GUI_PATH_TO_VM:-""}
 export GUI_ACTION_SPACE=${GUI_ACTION_SPACE:-"pyautogui"}
 export GUI_OBSERVATION_TYPE=${GUI_OBSERVATION_TYPE:-"screenshot"}
 export GUI_COORDINATE_TYPE=${GUI_COORDINATE_TYPE:-"relative"}
-export GUI_AGENT_CLASS_PATH=${GUI_AGENT_CLASS_PATH:-"examples.gui.agents.qwen3vl_agent.Qwen3VLAgentLocal"}
+export GUI_AGENT_CLASS_PATH=${GUI_AGENT_CLASS_PATH:-"agents.qwen3vl_agent.Qwen3VLAgentLocal"}
 MULTIMODAL_KEYS=${MULTIMODAL_KEYS:-'{"image":"images"}'}
 export GUI_REUSE_VM_ON_RESET=${GUI_REUSE_VM_ON_RESET:-0}
 export GUI_RESET_ON_CLOSE=${GUI_RESET_ON_CLOSE:-1}
@@ -72,7 +72,7 @@ export GUI_SCREEN_HEIGHT=${GUI_SCREEN_HEIGHT:-1080}
 WANDB_PROJECT=${WANDB_PROJECT:-slime_gui}
 GUI_PROJECT_NAME=${GUI_PROJECT_NAME:-slime_gui_4b_eval}
 export OSWORLD_PROJECT="${GUI_PROJECT_NAME}"
-export GUI_RESULT_DIR=${GUI_RESULT_DIR:-"/data_storage/wyj/slime_export/slime/examples/gui/results"}
+export GUI_RESULT_DIR=${GUI_RESULT_DIR:-"${SCRIPT_DIR}/results"}
 export GUI_RESULT_DIR="${GUI_RESULT_DIR}/${GUI_PROJECT_NAME}"
 export GUI_TEST_CONFIG_BASE_DIR=${GUI_TEST_CONFIG_BASE_DIR:-"${SCRIPT_DIR}/evaluation_examples"}
 export GUI_TRAIN_META_PATH=${GUI_TRAIN_META_PATH:-"${GUI_TEST_CONFIG_BASE_DIR}/train_nochrome.json"}
@@ -116,7 +116,7 @@ fi
 mkdir -p logs
 ENV_SERVER_LOG=${ENV_SERVER_LOG:-"./logs/gui_env_pool_server_4b_eval.log"}
 PYTHONPATH="${SLIME_DIR}:${SCRIPT_DIR}:${PYTHONPATH}" \
-  python3 -m examples.gui.env_pool_server \
+  python3 -m env_pool_server \
   --host "${GUI_ENV_SERVER_HOST}" \
   --port "${GUI_ENV_SERVER_PORT}" \
   --max-envs "${GUI_POOL_MAX_ENVS}" \
@@ -229,7 +229,7 @@ ray job submit --address="http://127.0.0.1:8265" \
   --rollout-num-gpus ${NUM_GPUS} \
   --multimodal-keys "${MULTIMODAL_KEYS}" \
   --hf-checkpoint "${HF_CKPT}" \
-  --data-source-path examples.gui.gui_data_source.GuiMetaDataSource \
+  --data-source-path gui_data_source.GuiMetaDataSource \
   --reward-key score \
   --num-rollout 100 \
   --rollout-batch-size 1 \
@@ -249,9 +249,9 @@ ray job submit --address="http://127.0.0.1:8265" \
   --n-samples-per-eval-prompt 1 \
   --eval-interval 1 \
   --eval-reward-key acc \
-  --eval-function-path examples.gui.generate_with_gui.gui_generate_rollout \
-  --custom-generate-function-path examples.gui.generate_with_gui.generate \
-  --custom-rm-path examples.gui.generate_with_gui.reward_func \
+  --eval-function-path generate_with_gui.gui_generate_rollout \
+  --custom-generate-function-path generate_with_gui.generate \
+  --custom-rm-path generate_with_gui.reward_func \
   --rollout-num-gpus-per-engine ${ROLLOUT_NUM_GPUS_PER_ENGINE} \
   --sglang-mem-fraction-static 0.85 \
   ${MODEL_ARGS[@]} \

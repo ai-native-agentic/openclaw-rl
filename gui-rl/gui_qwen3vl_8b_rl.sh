@@ -13,9 +13,9 @@ pkill -9 python || true
 set -ex
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-SLIME_DIR="$(cd -- "${SCRIPT_DIR}/../.." &>/dev/null && pwd)"
+SLIME_DIR="$(cd -- "${SCRIPT_DIR}/../slime" &>/dev/null && pwd)"
 MODEL_ARGS_ROTARY_BASE=5000000 source "${SLIME_DIR}/scripts/models/qwen3-8B.sh"
-MEGATRON_LM_PATH=${MEGATRON_LM_PATH:-/data_storage/wyj/slime_export/Megatron-LM}
+MEGATRON_LM_PATH=${MEGATRON_LM_PATH:-"${SCRIPT_DIR}/../Megatron-LM"}
 
 # keep stdout/stderr unbuffered in ray jobs
 export PYTHONUNBUFFERED=1
@@ -60,7 +60,7 @@ export GUI_PATH_TO_VM=${GUI_PATH_TO_VM:-""}
 export GUI_ACTION_SPACE=${GUI_ACTION_SPACE:-"pyautogui"}
 export GUI_OBSERVATION_TYPE=${GUI_OBSERVATION_TYPE:-"screenshot"}
 export GUI_COORDINATE_TYPE=${GUI_COORDINATE_TYPE:-"relative"}
-export GUI_AGENT_CLASS_PATH=${GUI_AGENT_CLASS_PATH:-"examples.gui.agents.qwen3vl_agent.Qwen3VLAgentLocal"}
+export GUI_AGENT_CLASS_PATH=${GUI_AGENT_CLASS_PATH:-"agents.qwen3vl_agent.Qwen3VLAgentLocal"}
 MULTIMODAL_KEYS=${MULTIMODAL_KEYS:-'{"image":"images"}'}
 export GUI_REUSE_VM_ON_RESET=${GUI_REUSE_VM_ON_RESET:-0}
 export GUI_RESET_ON_CLOSE=${GUI_RESET_ON_CLOSE:-1}
@@ -69,9 +69,9 @@ export GUI_SCREEN_WIDTH=${GUI_SCREEN_WIDTH:-1920}
 export GUI_SCREEN_HEIGHT=${GUI_SCREEN_HEIGHT:-1080}
 # Keep wandb project independent from OSWORLD/result project naming.
 WANDB_PROJECT=${WANDB_PROJECT:-slime_gui}
-GUI_PROJECT_NAME=${GUI_PROJECT_NAME:-slime_gui}
+GUI_PROJECT_NAME=${GUI_PROJECT_NAME:-slime_gui-8b-rl}
 export OSWORLD_PROJECT="${GUI_PROJECT_NAME}"
-export GUI_RESULT_DIR=${GUI_RESULT_DIR:-"/data_storage/wyj/slime_export/slime/examples/gui/results"}
+export GUI_RESULT_DIR=${GUI_RESULT_DIR:-"${SCRIPT_DIR}/results"}
 export GUI_RESULT_DIR="${GUI_RESULT_DIR}/${GUI_PROJECT_NAME}"
 export GUI_TEST_CONFIG_BASE_DIR=${GUI_TEST_CONFIG_BASE_DIR:-"${SCRIPT_DIR}/evaluation_examples"}
 export GUI_TRAIN_META_PATH=${GUI_TRAIN_META_PATH:-"${GUI_TEST_CONFIG_BASE_DIR}/train_nochrome.json"}
@@ -109,19 +109,19 @@ export VOLCENGINE_INSTANCE_TYPE=${VOLCENGINE_INSTANCE_TYPE:-"ecs.e-c1m2.large,ec
 # Do not put a default value here; export it in terminal when needed (same as keys).
 export download_proxy=${download_proxy:-}
 
-HF_CKPT=${HF_CKPT:-/data_storage/wyj/systems/huggingface/hub/models--Qwen--Qwen3-VL-8B-Thinking/snapshots/41ea130ce6eaaf7829c72dfc0e4597d49741ed18}
+HF_CKPT=${HF_CKPT:-/absolute/path/to/models--Qwen--Qwen3-VL-8B-Thinking/snapshots/41ea130ce6eaaf7829c72dfc0e4597d49741ed18}
 # For bridge+multimodal path, prefer HF checkpoint path for ref model loading.
 REF_LOAD=${REF_LOAD:-${HF_CKPT}}
 
 CKPT_ARGS=(
   --hf-checkpoint ${HF_CKPT}
   --ref-load ${REF_LOAD}
-  --save ${SAVE_CKPT:-/data_storage/wyj/slime_export/ckpt/gui-qwen3vl-8b-thinking-rl}
+  --save "${SAVE_CKPT:-${SCRIPT_DIR}/../ckpt/gui-qwen3vl-8b-rl}"
   --save-interval 20
 )
 
 ENABLE_RESUME_LOAD=${ENABLE_RESUME_LOAD:-0}
-RESUME_LOAD=${RESUME_LOAD:-/data_storage/wyj/slime_export/ckpt/gui-qwen3vl-8b-thinking-rl}
+RESUME_LOAD=${RESUME_LOAD:-/absolute/path/to/OpenClaw-RL/ckpt/gui-qwen3vl-8b-rl}
 if [[ "${ENABLE_RESUME_LOAD}" == "1" ]]; then
   CKPT_ARGS+=(--load "${RESUME_LOAD}")
   echo "Resume load enabled: ${RESUME_LOAD}"
@@ -133,7 +133,7 @@ ROLLOUT_BATCH_SIZE=${ROLLOUT_BATCH_SIZE:-4}
 N_SAMPLES_PER_PROMPT=${N_SAMPLES_PER_PROMPT:-8}
 
 ROLLOUT_ARGS=(
-  --data-source-path examples.gui.gui_data_source.GuiMetaDataSource
+  --data-source-path gui_data_source.GuiMetaDataSource
   --reward-key score
   --num-rollout 1000
   --rollout-batch-size ${ROLLOUT_BATCH_SIZE}
@@ -178,7 +178,7 @@ OPTIMIZER_ARGS=(
 )
 
 PERF_ARGS=(
-  --tensor-model-parallel-size 2
+  --tensor-model-parallel-size 4
   --sequence-parallel
   --pipeline-model-parallel-size 1
   # VLM train forward in current Megatron bridge expects unsliced vision inputs.
@@ -199,7 +199,8 @@ GRPO_ARGS=(
   --advantage-estimator grpo
   --dynamic_history
   --use-kl-loss
-  --kl-loss-coef 0.0
+  --kl-loss-type low_var_kl
+  --kl-loss-coef 0.01
 )
 
 #ROUTER_ARGS=(
@@ -214,8 +215,8 @@ SGLANG_ARGS=(
 )
 
 CUSTOM_ARGS=(
-  --custom-generate-function-path examples.gui.generate_with_gui.generate
-  --custom-rm-path examples.gui.generate_with_gui.reward_func
+  --custom-generate-function-path generate_with_gui.generate
+  --custom-rm-path generate_with_gui.reward_func
 )
 
 WANDB_KEY_VALUE=${WANDB_KEY:-${WANDB_API_KEY:-}}
@@ -234,7 +235,7 @@ fi
 mkdir -p logs
 ENV_SERVER_LOG=${ENV_SERVER_LOG:-"./logs/gui_env_pool_server.log"}
 PYTHONPATH="${SLIME_DIR}:${SCRIPT_DIR}:${PYTHONPATH}" \
-  python3 -m examples.gui.env_pool_server \
+  python3 -m env_pool_server \
   --host "${GUI_ENV_SERVER_HOST}" \
   --port "${GUI_ENV_SERVER_PORT}" \
   --max-envs "${GUI_POOL_MAX_ENVS}" \

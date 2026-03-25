@@ -42,7 +42,10 @@ where $\beta_{\text{KL}} = 0.02$. Entropy bonus is disabled ($\beta_{\text{ent}}
 
 ```bash
 cd slime
+# Qwen3
 bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh
+# Qwen3.5
+bash ../openclaw-rl/run_qwen35_4b_openclaw_rl.sh
 ```
 
 
@@ -52,8 +55,9 @@ bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh
 ```
 openclaw-rl/
 ├── README.md
-├── run_qwen3_4b_openclaw_rl.sh     # Launch script
-├── openclaw_api_server.py           # FastAPI proxy + PRM scoring + sample submission
-├── openclaw_rollout.py              # Async rollout worker (bridges API server ↔ SLIME trainer)
-└── results/                         # Runtime records (auto-created)
+├── run_qwen3_4b_openclaw_rl.sh          # Launch script (Qwen3)
+├── run_qwen35_4b_openclaw_rl.sh         # Launch script (Qwen3.5)
+├── openclaw_api_server.py               # FastAPI proxy + PRM scoring + sample submission
+├── openclaw_rollout.py                  # Async rollout worker (bridges API server ↔ SLIME trainer)
+└── results/                             # Runtime records (auto-created)
 ```

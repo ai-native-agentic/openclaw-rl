@@ -29,7 +29,10 @@ Default script:
 
 ```bash
 cd slime
+# Qwen3
 bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh
+# Qwen3.5
+bash ../openclaw-opd/run_qwen35_4b_openclaw_opd.sh
 ```
 
 ## Option B: Top-K Logits Distillation (SDFT/SDPO-style)
@@ -60,7 +63,10 @@ Top-K is implemented as an additive extension:
 
 ```bash
 cd slime
+# Qwen3
 bash ../openclaw-opd/run_qwen3_4b_openclaw_opd_topk.sh
+# Qwen3.5
+bash ../openclaw-opd/run_qwen35_4b_openclaw_opd_topk.sh
 ```
 
 Equivalent key args:
@@ -78,10 +84,12 @@ Equivalent key args:
 ```text
 openclaw-opd/
 ├── README.md
-├── run_qwen3_4b_openclaw_opd.sh            # Token-level OPD (default)
-├── run_qwen3_4b_openclaw_opd_topk.sh       # Top-K custom-loss path
-├── topk_distillation_loss.py               # Reverse-KL top-K loss (external custom loss)
-├── openclaw_opd_api_server.py              # Async judge + teacher query + sample submission
-├── openclaw_opd_rollout.py                 # Rollout bridge to SLIME trainer
-└── results/                                # Runtime records (auto-created)
+├── run_qwen3_4b_openclaw_opd.sh                # Token-level OPD (Qwen3)
+├── run_qwen35_4b_openclaw_opd.sh               # Token-level OPD (Qwen3.5)
+├── run_qwen3_4b_openclaw_opd_topk.sh           # Top-K (Qwen3)
+├── run_qwen35_4b_openclaw_opd_topk.sh          # Top-K (Qwen3.5)
+├── topk_distillation_loss.py                    # Reverse-KL top-K loss (external custom loss)
+├── openclaw_opd_api_server.py                   # Async judge + teacher query + sample submission
+├── openclaw_opd_rollout.py                      # Rollout bridge to SLIME trainer
+└── results/                                     # Runtime records (auto-created)
 ```

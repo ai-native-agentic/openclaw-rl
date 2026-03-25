@@ -43,6 +43,7 @@
 
 ## 📰 News
 
+- **[2026/3/20]** 🔥 You can use your own openclaw now, simply install [this extension](https://github.com/Gen-Verse/OpenClaw-RL/tree/main/extensions/rl-training-headers).
 - **[2026/3/13]** 🚀 OpenClaw-RL now supports both local GPU and cloud ([Tinker](https://thinkingmachines.ai/tinker/)) deployment. Launch with [**one line of code**](#combinemethod) — Hybrid RL, OPD, and Binary RL all supported!
 - **[2026/3/12]** 🔥 We support LoRA training now!
 - **[2026/3/10]** 🔥 We have released our [**Technical Report**](https://arxiv.org/abs/2603.10165)! 🏆 Ranked **#1** on [HuggingFace Daily Papers](https://huggingface.co/papers/2603.10165)!
@@ -126,6 +127,8 @@ Our long-term goal is to **advance personalized, practically useful agents with 
 
 We welcome contributions that integrate new learning methods into the OpenClaw-RL framework! The integration of [SDFT](https://arxiv.org/abs/2601.19897) / [SDPO](https://arxiv.org/abs/2601.20802) into [openclaw-opd](./openclaw-opd), and [supporting LoRA](https://github.com/Gen-Verse/OpenClaw-RL/pull/23) are great examples of successful community contributions.
 
+<!--
+
 **Highly wanted contributions:**
 - 🤖 **Qwen3.5 model support with slime** — launch scripts and model configs for the Qwen3.5 family
 - 🔧 **Low-precision training examples** — FP8/INT4 training scripts for existing methods
@@ -201,7 +204,7 @@ If you're interested in any of these, feel free to open an issue to discuss your
 
 </details>
 
-
+-->
 
 
 ## 📝 Contents
@@ -238,7 +241,7 @@ For detailed environment setup, see [Slime](https://github.com/THUDM/slime) or [
 
 #### Don't have a GPU?
 
-Create a [Tinker API](https://github.com/THUDM/slime). That's all you need. But note that Tinker only supports LoRA, which may not be as effective as full fine-tuning. So we are still testing it.
+Create a [Tinker API](https://thinkingmachines.ai/tinker/). That's all you need. But note that Tinker only supports LoRA, which may not be as effective as full fine-tuning. So we are still testing it.
 
 
 
@@ -377,7 +380,7 @@ See [`./openclaw-test/README.md`](./openclaw-test/README.md) for setup and algor
 
 ### 3. OpenClaw Setup
 
-Install OpenClaw from the version bundled in this repository (we will update it regularly):
+You can use your own openclaw, just install [this extension](https://github.com/Gen-Verse/OpenClaw-RL/tree/main/extensions/rl-training-headers).
 
 If you want local file-backed skill authoring in the bundled OpenClaw runtime, see [`openclaw/extensions/skill-bridge/README.md`](./openclaw/extensions/skill-bridge/README.md).
 

@@ -997,7 +997,7 @@ def apply_fsdp2(model, mesh=None, cpu_offload=False, args=None):
     if not layer_cls_to_wrap and hasattr(model, "base_model"):
         inner = getattr(model.base_model, "model", model.base_model)
         layer_cls_to_wrap = getattr(inner, "_no_split_modules", None)
-    assert layer_cls_to_wrap and len(layer_cls_to_wrap) > 0 and layer_cls_to_wrap[0] is not None
+    assert layer_cls_to_wrap and len(layer_cls_to_wrap) > 0 and next(iter(layer_cls_to_wrap)) is not None
 
     modules = [
         module

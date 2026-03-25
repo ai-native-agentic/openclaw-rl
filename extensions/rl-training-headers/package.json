@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/rl-training-headers",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Injects X-Session-Id and X-Turn-Type HTTP headers into LLM API requests for RL training data classification",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

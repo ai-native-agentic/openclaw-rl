@@ -1,18 +1,24 @@
 #!/bin/bash
+# Qwen3.5-4B full fine-tuning with OpenClaw combined method (Binary RL + OPD)
+# Uses Megatron backend with tensor parallelism
 
-pkill -9 sglang
-sleep 3
-ray stop --force
-pkill -9 ray
-pkill -9 python
-sleep 3
-pkill -9 ray
-pkill -9 python
+SKIP_CLUSTER_CLEANUP=${SKIP_CLUSTER_CLEANUP:-0}
+if [ "${SKIP_CLUSTER_CLEANUP}" != "1" ]; then
+  pkill -9 sglang
+  sleep 3
+  ray stop --force
+  pkill -9 ray
+  pkill -9 python
+  sleep 3
+  pkill -9 ray
+  pkill -9 python
+fi
 
 set -ex
 
 export PYTHONUNBUFFERED=1
 export PYTHONFAULTHANDLER=1
+export FLASHINFER_WORKSPACE_BASE="${FLASHINFER_WORKSPACE_BASE:-/tmp}"
 
 NUM_GPUS=${NUM_GPUS:-8}
 ACTOR_GPUS=${ACTOR_GPUS:-4}
@@ -33,24 +39,25 @@ export RAY_num_heartbeats_timeout=60
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 SLIME_ROOT="$(cd -- "${SCRIPT_DIR}/../slime" &>/dev/null && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." &>/dev/null && pwd)"
-source "${SLIME_ROOT}/scripts/models/qwen3-4B.sh"
+source "${SLIME_ROOT}/scripts/models/qwen3.5-4B.sh"
 
-HF_CKPT=${HF_CKPT:-/path/to/models/Qwen/Qwen3-4B-Thinking-2507}
+HF_CKPT=${HF_CKPT:-/path/to/models/Qwen/Qwen3.5-4B}
 REF_LOAD=${REF_LOAD:-${HF_CKPT}}
-SAVE_CKPT=${SAVE_CKPT:-${REPO_ROOT}/ckpt/qwen3-4b-openclaw-combine}
+SAVE_CKPT=${SAVE_CKPT:-${REPO_ROOT}/ckpt/qwen35-4b-openclaw-combine}
 PRM_MODEL_PATH=${PRM_MODEL_PATH:-${HF_CKPT}}
 
 export SGLANG_API_KEY="${SGLANG_API_KEY}"
-export SERVED_MODEL_NAME="qwen3-4b"
+export SERVED_MODEL_NAME="qwen3.5-4b"
 export HOST="0.0.0.0"
 export PORT="30000"
-export OPENCLAW_RECORD_ENABLED="${OPENCLAW_RECORD_ENABLED:-1}"  # 0=off, 1=on
-export OPENCLAW_RECORD_FILE="${SCRIPT_DIR}/results/qwen3_4b_record.jsonl"
+export OPENCLAW_RECORD_ENABLED="${OPENCLAW_RECORD_ENABLED:-1}"
+export OPENCLAW_RECORD_FILE="${SCRIPT_DIR}/results/qwen35_4b_record.jsonl"
 export TP="2"
 export CONTEXT_LENGTH="32768"
 export MEM_FRACTION_STATIC="0.8"
-export REASONING_PARSER="qwen3"
-export TOOL_CALL_PARSER="${TOOL_CALL_PARSER:-qwen25}"
+export REASONING_PARSER="${REASONING_PARSER:-qwen3}"
+export TOOL_CALL_PARSER="${TOOL_CALL_PARSER:-qwen3_coder}"
+export SGLANG_LANGUAGE_ONLY="${SGLANG_LANGUAGE_ONLY:-1}"
 export PRM_M="${PRM_M:-1}"
 export OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY="${OPENCLAW_OPD_TEACHER_LP_MAX_CONCURRENCY:-1}"
 export OPENCLAW_COMBINE_W_RL="${OPENCLAW_COMBINE_W_RL:-1.0}"
@@ -62,7 +69,7 @@ CKPT_ARGS=(
    --ref-load "${REF_LOAD}"
    --save "${SAVE_CKPT}"
    --save-interval 100
-   --rotary-base 5000000
+   --rotary-base 10000000
 )
 
 ROLLOUT_ARGS=(
@@ -129,8 +136,12 @@ SGLANG_ARGS=(
    --sglang-tool-call-parser "${TOOL_CALL_PARSER}"
    --sglang-mem-fraction-static 0.8
    --sglang-context-length 32768
-   --sglang-reasoning-parser qwen3
+   --sglang-reasoning-parser "${REASONING_PARSER}"
 )
+
+if [ "${SGLANG_LANGUAGE_ONLY}" = "1" ]; then
+  SGLANG_ARGS+=(--sglang-language-only)
+fi
 
 PRM_ARGS=(
    --prm-enable
@@ -162,7 +173,7 @@ if [ "${USE_WANDB}" = "1" ] && [ -n "${WANDB_KEY_VALUE}" ]; then
   WANDB_ARGS=(
     --use-wandb
     --wandb-project ${WANDB_PROJECT}
-    --wandb-group qwen3-4b-openclaw-combine
+    --wandb-group qwen35-4b-openclaw-combine
     --wandb-key ${WANDB_KEY_VALUE}
   )
 else
@@ -179,6 +190,7 @@ RUNTIME_ENV_JSON="{
   \"env_vars\": {
     \"PYTHONPATH\": \"${REPO_ROOT}/Megatron-LM/:${SCRIPT_DIR}:${SCRIPT_DIR}/../openclaw-opd:${SLIME_ROOT}\",
     \"CUDA_DEVICE_MAX_CONNECTIONS\": \"1\",
+    \"FLASHINFER_WORKSPACE_BASE\": \"${FLASHINFER_WORKSPACE_BASE}\",
     \"OPENCLAW_EVAL_MODE\": \"${OPENCLAW_EVAL_MODE}\",
     \"OPENCLAW_COMBINE_W_RL\": \"${OPENCLAW_COMBINE_W_RL}\",
     \"OPENCLAW_COMBINE_W_OPD\": \"${OPENCLAW_COMBINE_W_OPD}\"

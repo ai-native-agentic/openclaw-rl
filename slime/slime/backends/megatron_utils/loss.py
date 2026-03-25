@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import torch
+import torch.distributed as dist
 from megatron.core import mpu
 from torch.utils.checkpoint import checkpoint
 
@@ -316,29 +317,16 @@ def compute_advantages_and_returns(args: Namespace, rollout_data: RolloutBatch) 
         step_rewards_per_sample = rollout_data.get("step_wise_step_rewards")
         step_spans_per_sample = rollout_data.get("step_wise_step_token_spans")
         step_indices_per_sample = rollout_data.get("step_wise_step_indices")
-        group_indices = rollout_data.get("group_indices")
 
-        if step_rewards_per_sample is None or step_spans_per_sample is None or group_indices is None:
+        if step_rewards_per_sample is None or step_spans_per_sample is None or step_indices_per_sample is None:
             raise ValueError(
                 "step_wise advantage requires rollout_data keys: "
-                "step_wise_step_rewards, step_wise_step_token_spans, group_indices"
-            )
-
-        num_samples = len(response_lengths)
-        if not (len(step_rewards_per_sample) == len(step_spans_per_sample) == len(group_indices) == num_samples):
-            raise ValueError(
-                "step_wise metadata length mismatch: "
-                f"rewards={len(step_rewards_per_sample)}, spans={len(step_spans_per_sample)}, "
-                f"groups={len(group_indices)}, samples={num_samples}"
-            )
-        if step_indices_per_sample is not None and len(step_indices_per_sample) != num_samples:
-            raise ValueError(
-                "step_wise metadata length mismatch for step indices: "
-                f"indices={len(step_indices_per_sample)}, samples={num_samples}"
+                "step_wise_step_rewards, step_wise_step_token_spans, step_wise_step_indices"
             )
 
         advantages = []
         returns = []
+        num_samples = len(response_lengths)
         for i in range(num_samples):
             response_len = int(response_lengths[i])
             total_len = int(total_lengths[i])
@@ -348,7 +336,6 @@ def compute_advantages_and_returns(args: Namespace, rollout_data: RolloutBatch) 
             full_adv = torch.zeros(response_len, dtype=torch.float32, device=kl[0].device)
             full_mask = loss_masks[i].to(device=full_adv.device, dtype=full_adv.dtype)
 
-            _group_idx = int(group_indices[i])
             step_rewards_i = step_rewards_per_sample[i] or []
             step_spans_i = step_spans_per_sample[i] or []
             step_indices_i = (
@@ -388,7 +375,6 @@ def compute_advantages_and_returns(args: Namespace, rollout_data: RolloutBatch) 
             advantages.append(local_adv)
             returns.append(local_adv.clone())
 
-    
     elif args.advantage_estimator == "ppo":
         if values is None:
             raise ValueError("ppo advantage estimator requires rollout_data['values'], but got None.")

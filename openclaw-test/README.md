@@ -115,32 +115,38 @@ cd slime
 
 **Combined (RL + OPD):**
 ```bash
-bash ../openclaw-combine/run_qwen3_4b_openclaw_combine.sh
+bash ../openclaw-combine/run_qwen3_4b_openclaw_combine.sh      # Qwen3
+bash ../openclaw-combine/run_qwen35_4b_openclaw_combine.sh     # Qwen3.5
 ```
 
 **Combined with LoRA** (parameter-efficient, fewer GPUs):
 ```bash
-bash ../openclaw-combine/run_qwen3_4b_openclaw_combine_lora.sh
+bash ../openclaw-combine/run_qwen3_4b_openclaw_combine_lora.sh     # Qwen3
+bash ../openclaw-combine/run_qwen35_4b_openclaw_combine_lora.sh    # Qwen3.5
 ```
 
 **Binary RL:**
 ```bash
-bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh
+bash ../openclaw-rl/run_qwen3_4b_openclaw_rl.sh      # Qwen3
+bash ../openclaw-rl/run_qwen35_4b_openclaw_rl.sh     # Qwen3.5
 ```
 
 **Binary RL with LoRA** (parameter-efficient, fewer GPUs):
 ```bash
-bash ../openclaw-rl/run_qwen3_4b_openclaw_rl_lora.sh
+bash ../openclaw-rl/run_qwen3_4b_openclaw_rl_lora.sh     # Qwen3
+bash ../openclaw-rl/run_qwen35_4b_openclaw_rl_lora.sh    # Qwen3.5
 ```
 
 **On-Policy Distillation (OPD):**
 ```bash
-bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh
+bash ../openclaw-opd/run_qwen3_4b_openclaw_opd.sh      # Qwen3
+bash ../openclaw-opd/run_qwen35_4b_openclaw_opd.sh     # Qwen3.5
 ```
 
 **OPD with LoRA** (parameter-efficient, fewer GPUs):
 ```bash
-bash ../openclaw-opd/run_qwen3_4b_openclaw_opd_topk_lora.sh
+bash ../openclaw-opd/run_qwen3_4b_openclaw_opd_topk_lora.sh     # Qwen3
+bash ../openclaw-opd/run_qwen35_4b_openclaw_opd_topk_lora.sh    # Qwen3.5
 ```
 
 > **Eval mode:** To enable evaluation logging with W&B, set `OPENCLAW_EVAL_MODE=1` and provide your W&B key via `WANDB_KEY` before launching. This is already the default in the OPD and Combine scripts.

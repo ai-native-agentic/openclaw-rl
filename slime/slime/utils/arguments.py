@@ -1904,10 +1904,21 @@ def hf_validate_args(args, hf_config):
         ("rms_norm_eps", "norm_epsilon", equal),
         ("rope_theta", "rotary_base", equal),
     ]:
-        if hasattr(hf_config, hf_config_name):
-            if not compare_fn(getattr(hf_config, hf_config_name), getattr(args, megatron_config_name)):
+        # Handle nested rope_parameters for models like Qwen3.5
+        hf_value = None
+        if hf_config_name == "rope_theta" and hasattr(hf_config, "rope_parameters"):
+            rope_params = getattr(hf_config, "rope_parameters")
+            if isinstance(rope_params, dict) and "rope_theta" in rope_params:
+                hf_value = rope_params["rope_theta"]
+            elif hasattr(rope_params, "rope_theta"):
+                hf_value = getattr(rope_params, "rope_theta")
+        elif hasattr(hf_config, hf_config_name):
+            hf_value = getattr(hf_config, hf_config_name)
+
+        if hf_value is not None:
+            if not compare_fn(hf_value, getattr(args, megatron_config_name)):
                 errors.append(
-                    f"{hf_config_name} in hf config {getattr(hf_config, hf_config_name)} is not equal to "
+                    f"{hf_config_name} in hf config {hf_value} is not equal to "
                     f"{megatron_config_name} {getattr(args, megatron_config_name)}, please check the config."
                 )
 

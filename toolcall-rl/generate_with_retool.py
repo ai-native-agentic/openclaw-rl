@@ -30,8 +30,22 @@ logger = logging.getLogger(__name__)
 _PRM_SEMAPHORE: asyncio.Semaphore | None = None
 _PRM_TOKENIZER: Any = None
 
-# Jinja2 template for tool-enabled conversations
-TOOL_TEMPLATE = """<|im_start|>system
+
+def _get_generation_prompt_suffix(sample_prompt: str) -> str:
+    """Extract suffix after the last '<|im_start|>assistant\\n' in sample.prompt.
+
+    sample.prompt is produced by tokenizer.apply_chat_template with the user's
+    kwargs, so the suffix faithfully reflects the intended generation prompt.
+    e.g. Qwen3.5 default → '<think>\\n', Qwen3 default → ''.
+    """
+    tag = "<|im_start|>assistant\n"
+    idx = sample_prompt.rfind(tag)
+    if idx >= 0:
+        return sample_prompt[idx + len(tag):]
+    return ""
+
+# Jinja2 template for tool-enabled conversations (Qwen3 JSON format)
+TOOL_TEMPLATE_JSON = """<|im_start|>system
 {%- if messages[0]['role'] == 'system' %}
 {{- messages[0]['content'] }}
 {%- else %}
@@ -67,15 +81,80 @@ For each function call, return a json object with function name and arguments wi
 <|im_start|>assistant
 """
 
+# Jinja2 template for tool-enabled conversations (Qwen3.5 XML format)
+TOOL_TEMPLATE_XML = """<|im_start|>system
+{%- if messages[0]['role'] == 'system' %}
+{{- messages[0]['content'] }}
+{%- else %}
+You are a helpful assistant.
+{%- endif %}
+{%- if tools %}
+
+# Tools
+
+You have access to the following functions:
+
+<tools>
+{%- for tool in tools %}
+{{- tool | tojson }}
+{%- endfor %}
+</tools>
+
+If you choose to call a function ONLY reply in the following format with NO suffix:
+
+<tool_call>
+<function=example_function_name>
+<parameter=example_parameter_1>
+value_1
+</parameter>
+</function>
+</tool_call>
+{%- endif %}
+<|im_end|>
+{%- for message in messages %}
+{%- if message['role'] == 'user' %}
+<|im_start|>user
+{{- message['content'] }}<|im_end|>
+{%- elif message['role'] == 'assistant' %}
+<|im_start|>assistant
+{{- message['content'] }}<|im_end|>
+{%- endif %}
+{%- endfor %}
+<|im_start|>assistant
+"""
+
+# Cached tool call format: "json" (Qwen3) or "xml" (Qwen3.5)
+_TOOL_CALL_FORMAT: str | None = None
+
+
+def _detect_tool_call_format(tokenizer) -> str:
+    """Detect whether the model uses JSON or XML tool call format.
+
+    Qwen3.5 chat template uses '<function=' XML format;
+    Qwen3 and others use JSON '{"name": ...}' format.
+    """
+    global _TOOL_CALL_FORMAT
+    if _TOOL_CALL_FORMAT is not None:
+        return _TOOL_CALL_FORMAT
+    chat_template = getattr(tokenizer, "chat_template", "") or ""
+    if "<function=" in chat_template or "<parameter=" in chat_template:
+        _TOOL_CALL_FORMAT = "xml"
+    else:
+        _TOOL_CALL_FORMAT = "json"
+    logger.info(f"Detected tool call format: {_TOOL_CALL_FORMAT}")
+    return _TOOL_CALL_FORMAT
+
 _PRM_BOXED_PATTERN = re.compile(r"\\boxed\{((?:[^{}]|\{[^{}]*\})*)\}", re.DOTALL)
 _PRM_STRICT_NUMBER_PATTERN = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)\s*$")
 
 
 def format_conversation_with_tools(
-    prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None
+    prompt: str, tools: list[dict[str, Any]] = None, system_prompt: str = None, messages: list[dict[str, Any]] = None,
+    tool_call_format: str = "json",
 ) -> str:
     """Format conversation using Jinja2 template with tool support"""
-    template = Template(TOOL_TEMPLATE)
+    raw_template = TOOL_TEMPLATE_XML if tool_call_format == "xml" else TOOL_TEMPLATE_JSON
+    template = Template(raw_template)
 
     # Prepare messages
     messages_to_render = []
@@ -117,28 +196,46 @@ def postprocess_predictions(prediction: str):
         content = answer_match.group(1).strip()
         return "answer", content
 
-    # Then check for <tool_call> tags (new format from Jinja2 template)
-    tool_call_pattern = r"<tool_call>\s*(\{.*?\})\s*</tool_call>"
-    tool_call_match = re.search(tool_call_pattern, prediction, re.DOTALL)
-    if tool_call_match:
-        try:
-            import json
+    # Check for <tool_call> tags — try both JSON (Qwen3) and XML (Qwen3.5) formats
 
-            # Clean up the JSON string by removing newlines and extra
-            # whitespace
-            json_str = tool_call_match.group(1)
-            # Replace newlines in string values with \n
-            json_str = json_str.replace("\n", "\\n")
+    # JSON format: <tool_call>{"name": "...", "arguments": {...}}</tool_call>
+    tool_call_json = re.search(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", prediction, re.DOTALL)
+    if tool_call_json:
+        try:
+            json_str = tool_call_json.group(1).replace("\n", "\\n")
             tool_call_data = json.loads(json_str)
             tool_name = tool_call_data.get("name")
             arguments = tool_call_data.get("arguments", {})
-
             if tool_name == "code_interpreter":
                 code = arguments.get("code", "")
                 if code.strip():
                     return "code", code
         except (json.JSONDecodeError, KeyError, AttributeError):
             pass
+
+    # XML format: <tool_call><function=code_interpreter><parameter=code>...</parameter></function></tool_call>
+    tool_call_xml = re.search(
+        r"<tool_call>\s*<function=(\w+)>\s*<parameter=code>(.*?)</parameter>\s*</function>\s*</tool_call>",
+        prediction, re.DOTALL,
+    )
+    if tool_call_xml:
+        tool_name = tool_call_xml.group(1)
+        if tool_name == "code_interpreter":
+            code = tool_call_xml.group(2).strip()
+            if code:
+                return "code", code
+
+    # Fallback: XML without proper </function></tool_call> closure (partial match)
+    tool_call_xml_partial = re.search(
+        r"<tool_call>\s*<function=(\w+)>\s*<parameter=code>(.*?)</parameter>",
+        prediction, re.DOTALL,
+    )
+    if tool_call_xml_partial:
+        tool_name = tool_call_xml_partial.group(1)
+        if tool_name == "code_interpreter":
+            code = tool_call_xml_partial.group(2).strip()
+            if code:
+                return "code", code
 
     # Then check for <code> tags
     code_pattern = r"<code>(.*?)</code>"
@@ -159,11 +256,9 @@ def postprocess_predictions(prediction: str):
 
 def postprocess_responses(resp: str) -> str:
     """Post-process response to ensure tag completeness"""
-    # Handle <tool_call> tags (new format from Jinja2 template)
-    if "<tool_call>" in resp:
-        # Find the last occurrence of <tool_call>...</tool_call>
-        tool_call_pattern = r"<tool_call>\s*\{.*?\}\s*</tool_call>"
-        matches = list(re.finditer(tool_call_pattern, resp, re.DOTALL))
+    # Handle <tool_call> tags (JSON or XML format)
+    if "<tool_call>" in resp and "</tool_call>" in resp:
+        matches = list(re.finditer(r"<tool_call>.*?</tool_call>", resp, re.DOTALL))
         if matches:
             last_match = matches[-1]
             return resp[: last_match.end()]
@@ -435,7 +530,9 @@ async def generate(args, sample: Sample, sampling_params) -> Sample:
 
     # Set up the initial prompt with system prompt and tools (outside the loop)
     tool_specs = tool_registry.get_tool_specs()
-    prompt = format_conversation_with_tools(prompt=sample.prompt, tools=tool_specs)
+    tc_format = _detect_tool_call_format(state.tokenizer)
+    prompt = format_conversation_with_tools(prompt=sample.prompt, tools=tool_specs, tool_call_format=tc_format)
+    prompt += _get_generation_prompt_suffix(sample.prompt)
 
     prompt_tokens_ids = state.tokenizer(prompt, add_special_tokens=False)["input_ids"]
     response = ""

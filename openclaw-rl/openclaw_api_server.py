@@ -48,6 +48,7 @@ def _normalize_messages_for_template(messages: list[dict]) -> list[dict]:
 
     - developer → system (templates only know 'system')
     - multimodal content lists → plain text strings
+    - tool_call arguments: JSON string → dict (for Jinja2 |items)
     """
     out = []
     for msg in messages:
@@ -57,8 +58,26 @@ def _normalize_messages_for_template(messages: list[dict]) -> list[dict]:
         raw = m.get("content")
         if not isinstance(raw, str) and raw is not None:
             m["content"] = _flatten_message_content(raw)
+        if m.get("tool_calls"):
+            m["tool_calls"] = [_normalize_tool_call(tc) for tc in m["tool_calls"]]
         out.append(m)
     return out
+
+
+def _normalize_tool_call(tc: dict) -> dict:
+    """Ensure tool_call.function.arguments is a dict so Jinja2 |items works."""
+    tc = dict(tc)
+    fn = tc.get("function")
+    if isinstance(fn, dict):
+        fn = dict(fn)
+        args = fn.get("arguments")
+        if isinstance(args, str):
+            try:
+                fn["arguments"] = json.loads(args)
+            except (json.JSONDecodeError, TypeError):
+                fn["arguments"] = {}
+        tc["function"] = fn
+    return tc
 
 
 def _extract_logprobs_from_chat_response(choice: dict[str, Any]) -> list[float]:

@@ -83,6 +83,8 @@ def get_model_provider_func(
     if args.megatron_to_hf_mode == "bridge":
         from megatron.bridge import AutoBridge
 
+        import slime_plugins.megatron_bridge  # noqa: F401  # register custom bridges
+
         bridge = AutoBridge.from_hf_pretrained(args.hf_checkpoint, trust_remote_code=True)
         provider = bridge.to_megatron_provider(load_weights=False)
         # TODO: we should not manually set this...

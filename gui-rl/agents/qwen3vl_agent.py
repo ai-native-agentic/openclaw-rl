@@ -78,10 +78,9 @@ class Qwen3VLAgentLocal:
         assert observation_type in ["screenshot"], "Invalid observation type"
         assert coordinate_type in ["relative", "absolute", "qwen25"], "Invalid coordinate type"
 
-        # 对齐 OpenCUAAgentLocal：显式保存 policy/reward 轨迹
         self.actions: List[str] = []
         self.responses: List[str] = []
-        self.screenshots: List[str] = []  # 存 processed image base64（用于下一步回放给模型）
+        self.screenshots: List[str] = []  
 
     def reset(self, _logger=None):
         global logger
@@ -92,11 +91,8 @@ class Qwen3VLAgentLocal:
         self.screenshots = []
 
     def _scale_scroll_for_windows(self, code: str, factor: int = 50) -> str:
-        """与 OpenCUAAgentLocal 对齐：Windows 上 scroll scale 不同"""
         if self.platform.lower() != "windows":
             return code
-        # 很粗暴但够用：pyautogui.scroll(<int>)
-        # 只按右括号前的整数乘 factor
         import re
 
         pattern_pos = re.compile(r"(pyautogui\.scroll\()\s*([-+]?\d+)\s*\)")
@@ -262,18 +258,18 @@ Rules:
         image_data: List[str] = []
         if processor:
             multimodal_inputs = self._extract_multimodal(messages, processor)
-            proc_kwargs: Dict[str, Any] = {"text": [prompt_text], "return_tensors": "pt", **multimodal_inputs}
             images = multimodal_inputs.get("images") or []
             if images:
                 image_data = [encode_image_for_rollout_engine(img) for img in images]
-            proc_out = processor(**proc_kwargs)
-            input_ids = proc_out["input_ids"][0].tolist()
-        else:
-            input_ids = tokenizer(prompt_text, add_special_tokens=False)["input_ids"]
 
-        payload["input_ids"] = input_ids
         if image_data:
+            # Prefer SGLang's standard multimodal path for compatibility across
+            # versions. The token_in VLM path has had version-specific issues for
+            # Qwen-VL when input_ids already contain expanded vision placeholders.
+            payload["text"] = prompt_text
             payload["image_data"] = image_data
+        else:
+            payload["input_ids"] = tokenizer(prompt_text, add_special_tokens=False)["input_ids"]
 
         output = await post(url, payload)
         finish_type = output["meta_info"]["finish_reason"]["type"]
@@ -387,9 +383,6 @@ Rules:
         processed_width: Optional[int] = None,
         processed_height: Optional[int] = None,
     ) -> Tuple[str, List[str], Dict[str, Any]]:
-        """
-        与 OpenCUAAgentLocal 对齐：返回 (action_text, [pyautogui_code...], other_info)
-        """
         low_level_instruction = ""
         pyautogui_code: List[str] = []
         other: Dict[str, Any] = {"raw_response": response, "tool_calls": []}
@@ -398,7 +391,7 @@ Rules:
             return low_level_instruction, pyautogui_code, other
 
         def adjust_coordinates(x: float, y: float) -> Tuple[int, int]:
-            # absolute / qwen25：按 processed->original 缩放；relative：按 0..999 网格缩放
+            # absolute / qwen25
             if self.coordinate_type in ("absolute", "qwen25"):
                 if processed_width and processed_height:
                     x_scale = original_width / processed_width
@@ -534,7 +527,7 @@ Rules:
                 current_tool_call.append(line)
                 continue
 
-            # 容忍一行 JSON
+            # JSON
             if line.startswith("{") and line.endswith("}"):
                 try:
                     obj = json.loads(line)
